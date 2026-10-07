@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#102b25">
+    <meta name="description" content="イカサマとダウトで駆け引きする1対1のポーカーゲーム">
+    <title>イカサマポーカー</title>
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="イカサマポーカー ホーム">
+          <span class="brand-mark">♠</span>
+          <span>イカサマ<span class="brand-light">ポーカー</span></span>
+        </a>
+        <span class="version">POKER · 1 VS 1</span>
+      </header>
+
+      <section id="lobby" class="lobby">
+        <div class="hero">
+          <span class="eyebrow">BLUFF. BET. CATCH.</span>
+          <h1>バレなければ、<br><span>勝ち。</span></h1>
+          <p>カードを読み、相手を欺き、ここぞでダウト。<br>最後にチップを持っているのは誰だ。</p>
+        </div>
+        <div class="setup-card">
+          <h2>対戦をはじめる</h2>
+          <div class="mode-tabs" role="group" aria-label="対戦相手">
+            <button id="cpu-mode-button" class="mode-tab active" type="button" aria-pressed="true">CPU対戦</button>
+            <button id="online-mode-button" class="mode-tab" type="button" aria-pressed="false">オンライン</button>
+          </div>
+          <div id="cpu-setup">
+            <p class="muted">ゲームモードを選んでください</p>
+          <label class="mode-option">
+            <input type="radio" name="mode" value="draw" checked>
+            <span class="radio-mark"></span>
+            <span class="mode-copy"><strong>5カードドロー</strong><small>5枚の手札を交換して勝負</small></span>
+            <span class="mode-time">CLASSIC</span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="mode" value="holdem">
+            <span class="radio-mark"></span>
+            <span class="mode-copy"><strong>テキサスホールデム</strong><small>手札2枚とコミュニティカードで勝負</small></span>
+            <span class="mode-time">STRATEGY</span>
+          </label>
+          <button id="start-button" class="button button-primary button-wide">ゲーム開始 <span aria-hidden="true">→</span></button>
+          </div>
+          <div id="online-setup" class="hidden">
+            <p class="muted">ルームコードを共有して友達と対戦</p>
+            <label class="online-field">プレイヤー名<input id="player-name" maxlength="20" autocomplete="nickname" value="プレイヤー"></label>
+            <label class="online-field">ゲームモード<select id="online-mode"><option value="draw">5カードドロー</option><option value="holdem">テキサスホールデム</option></select></label>
+            <button id="create-room-button" class="button button-primary button-wide">ルームを作成</button>
+            <div class="room-divider"><span>または参加</span></div>
+            <label class="online-field">ルームコード<input id="join-room-code" maxlength="6" autocomplete="off" placeholder="例: A2BCDE"></label>
+            <button id="join-room-button" class="button button-secondary button-wide">ルームに参加</button>
+            <div id="room-status" class="room-status hidden" role="status"></div>
+            <div id="room-code-card" class="room-code-card hidden">
+              <span>ルームコード</span><strong id="room-code-value"></strong>
+              <small>対戦相手にこのコードを共有してください</small>
+            </div>
+            <button id="start-match-button" class="button button-primary button-wide hidden">このモードで対戦開始</button>
+            <button id="leave-room-button" class="button button-quiet button-wide hidden">ルームを退出</button>
+          </div>
+          <div class="rules-foot"><span>♢</span> 初期チップ 500　·　イカサマMP 5 / ラウンド</div>
+        </div>
+        <div class="lobby-note"><span>✦</span> イカサマはログに残らない。見抜くのは、あなた。</div>
+      </section>
+
+      <section id="game" class="game hidden" aria-label="ゲーム画面">
+        <div class="game-heading">
+          <div>
+            <div class="eyebrow">ROUND <span id="round-number">1</span> <span class="heading-dot">·</span> <span id="mode-name">5カードドロー</span></div>
+            <h1 id="street-name">ドロー</h1>
+          </div>
+          <button id="new-game-button" class="button button-quiet">ゲームをやり直す</button>
+        </div>
+
+        <section class="table" aria-label="ポーカーテーブル">
+          <div class="table-glow"></div>
+          <div class="player-zone opponent-zone">
+            <div class="player-info">
+              <div class="avatar avatar-cpu" id="opponent-avatar">CPU</div>
+              <div><strong id="opponent-name">CPU</strong><span class="status" id="cpu-status">待機中</span></div>
+              <div class="stack-chip"><span>チップ</span><strong id="cpu-stack">500</strong></div>
+            </div>
+            <div id="cpu-cards" class="cards opponent-cards" aria-label="CPUの手札"></div>
+          </div>
+
+          <div class="table-center">
+            <div class="pot-label">POT <strong id="pot">15</strong></div>
+            <div id="community-cards" class="cards community-cards" aria-label="コミュニティカード"></div>
+            <div id="table-message" class="table-message" aria-live="polite">ブラインドを置いてゲーム開始</div>
+          </div>
+
+          <div class="player-zone human-zone">
+            <div id="human-cards" class="cards human-cards" aria-label="あなたの手札"></div>
+            <div class="player-info">
+              <div class="avatar avatar-human" id="human-avatar">YOU</div>
+              <div><strong id="human-name">あなた</strong><span class="status" id="human-status">あなたの番</span></div>
+              <div class="stack-chip"><span>チップ</span><strong id="human-stack">500</strong></div>
+            </div>
+            <div class="resource-row">
+              <div class="mp-meter"><span>イカサマ MP</span><strong id="human-mp">5</strong><div class="meter-track"><span id="mp-fill"></span></div></div>
+              <div id="sleeve-status" class="sleeve-status hidden">袖の下 <span>1枚保管中</span></div>
+            </div>
+          </div>
+        </section>
+
+        <div id="notice" class="notice hidden" role="status"></div>
+
+        <div class="play-area">
+          <section class="action-panel">
+            <div class="panel-heading"><h2>アクション</h2><span id="turn-label" class="turn-label"></span></div>
+            <div id="bet-actions" class="bet-actions">
+              <button id="check-button" class="button button-secondary">チェック</button>
+              <button id="call-button" class="button button-secondary">コール <span id="call-amount"></span></button>
+              <label class="raise-control"><span class="sr-only">レイズ額</span><input id="raise-amount" type="number" min="10" step="10" value="20"><button id="raise-button" class="button button-primary">レイズ</button></label>
+              <button id="fold-button" class="button button-danger">フォールド</button>
+            </div>
+            <div id="draw-actions" class="draw-actions hidden">
+              <span>交換するカードを選択（何枚でも）</span>
+              <button id="draw-button" class="button button-primary">選んだカードを交換</button>
+            </div>
+            <div id="round-actions" class="round-actions hidden">
+              <button id="next-round-button" class="button button-primary">次のラウンドへ <span aria-hidden="true">→</span></button>
+              <button id="restart-button" class="button button-primary hidden">新しいゲーム</button>
+            </div>
+            <div class="divider"></div>
+            <div class="special-actions">
+              <div><strong>イカサマ</strong><span>手番に関係なく使用可能</span></div>
+              <div id="cheat-buttons" class="cheat-buttons"></div>
+              <button id="doubt-button" class="button button-doubt"><span aria-hidden="true">⚑</span> ダウト</button>
+            </div>
+            <p class="privacy-note">イカサマの予兆・履歴は表示されません。</p>
+          </section>
+
+          <aside class="log-panel">
+            <div class="panel-heading"><h2>ゲームログ</h2><span class="live-indicator">● LIVE</span></div>
+            <ol id="game-log" class="game-log" aria-live="polite"></ol>
+            <p class="log-foot">チップの動きだけが記録されます</p>
+          </aside>
+        </div>
+        <footer class="game-footer">イカサマポーカー <span>·</span> 読み合いは、静かに。</footer>
+      </section>
+    </main>
+
+    <dialog id="action-dialog" class="action-dialog">
+      <form method="dialog" id="dialog-form">
+        <button class="dialog-close" value="cancel" aria-label="閉じる">×</button>
+        <div id="dialog-content"></div>
+      </form>
+    </dialog>
+  </body>
+</html>
