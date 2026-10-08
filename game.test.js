@@ -62,7 +62,10 @@ test("正しいダウトでラウンドに勝ち、誤った指摘は再指摘�
   const caught = new PokerGame().startHand();
   caught.useCheat(1, "peek", { handIndices: [0, 1, 2] });
   assert.equal(caught.challenge(0, "peek").success, true);
-  assert.equal(caught.phase, "settled");
+  assert.equal(caught.phase, "gameover");
+  assert.equal(caught.matchOver, true);
+  assert.equal(caught.players[1].stack, 0);
+  assert.ok(caught.players[0].stack > 500);
 
   const missed = new PokerGame().startHand();
   assert.equal(missed.challenge(0, "rewrite").success, false);

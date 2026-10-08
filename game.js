@@ -349,14 +349,14 @@ export class PokerGame {
     if (challenger.lockedOut) throw new Error("このラウンドでは再度ダウトできません。");
     if (!CHEATS.some(({ id }) => id === cheatId)) throw new Error("指摘する種類を選択してください。");
     if (this.cheatUsed[targetIndex].includes(cheatId)) {
-      const penalty = Math.min(target.stack, Math.max(20, Math.floor(this.pot / 2)));
-      target.stack -= penalty;
+      const penalty = target.stack;
+      target.stack = 0;
       challenger.stack += this.pot + penalty;
       const wonPot = this.pot;
       this.pot = 0;
       this.phase = "settled";
-      this.notice = `ダウト成功！ ${target.name}から${penalty}チップを徴収し、このラウンドに勝利しました。`;
-      this.logs.push(`${challenger.name}のダウト成功。ラウンドの勝者は${challenger.name}です。`);
+      this.notice = `ダウト成功！ ${target.name}は強制敗北し、${challenger.name}の勝利です。`;
+      this.logs.push(`${challenger.name}のダウト成功。${target.name}は強制敗北しました。`);
       this.checkMatchOver();
       return { success: true, penalty, wonPot };
     }
