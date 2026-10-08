@@ -5,6 +5,7 @@ const $ = (selector) => document.querySelector(selector);
 const elements = {
   lobby: $("#lobby"),
   game: $("#game"),
+  resultScreen: $("#result-screen"),
   actionDialog: $("#action-dialog"),
   dialogForm: $("#dialog-form"),
   dialogContent: $("#dialog-content"),
@@ -37,12 +38,26 @@ $("#create-room-button").addEventListener("click", () => createOrJoinRoom("creat
 $("#join-room-button").addEventListener("click", () => createOrJoinRoom("join"));
 $("#start-match-button").addEventListener("click", () => sendOnline("start"));
 $("#leave-room-button").addEventListener("click", exitOnlineRoom);
+$("#hand-rankings-button").addEventListener("click", () => $("#hand-rankings-dialog").showModal());
+$("#copy-room-code-button").addEventListener("click", async () => {
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("この環境ではコピーできません。ルームコードを選択してコピーしてください。");
+    await navigator.clipboard.writeText($("#waiting-room-code").textContent);
+    $("#waiting-status").textContent = "ルームコードをコピーしました。";
+    $("#waiting-status").classList.remove("error");
+  } catch (error) {
+    $("#waiting-status").textContent = error.message;
+    $("#waiting-status").classList.add("error");
+  }
+});
 $("#new-game-button").addEventListener("click", () => {
   if (!window.confirm(onlineClient ? "ルームを退出しますか？" : "現在の対戦を終了して、最初からやり直しますか？")) return;
   if (onlineClient) exitOnlineRoom();
   else startGame();
 });
 $("#restart-button").addEventListener("click", () => onlineClient ? sendOnline("restart") : startGame());
+$("#result-restart-button").addEventListener("click", () => onlineClient ? sendOnline("restart") : startGame());
+$("#result-leave-button").addEventListener("click", exitOnlineRoom);
 $("#next-round-button").addEventListener("click", () => {
   if (!game || game.matchOver || busy) return;
   clearOpponentTell();
@@ -125,25 +140,52 @@ function createOnlineClient() {
       $("#online-mode-button").disabled = true;
       $("#leave-room-button").classList.remove("hidden");
       if (previousHandNumber && game?.handNumber !== previousHandNumber) clearTemporaryPeek();
-      $("#room-code-value").textContent = state.roomCode;
-      $("#room-code-card").classList.remove("hidden");
+      $("#waiting-room-code").textContent = state.roomCode;
       $("#start-match-button").classList.toggle("hidden", !state.isHost || Boolean(state.game));
       $("#start-match-button").disabled = state.connected.some((connected) => !connected);
-      setRoomStatus(state.game
-        ? (state.connected.every(Boolean) ? "対戦中です。" : "対戦相手の再接続を待っています。")
-        : state.connected.every(Boolean) ? "対戦相手が参加しました。ゲームを開始できます。" : "相手の参加を待っています。");
-      if (game) {
+      if (state.game) {
         $("#lobby").classList.add("hidden");
+        $("#room-waiting").classList.add("hidden");
         $("#game").classList.remove("hidden");
+      } else {
+        $("#lobby").classList.add("hidden");
+        $("#room-waiting").classList.remove("hidden");
+        renderWaitingRoom(state);
+      }
+      if (game) {
         render();
       }
     },
     onDisconnect: (message) => {
-      localHint = message;
-      setRoomStatus(message, true);
-      render();
+      if (onlineSession && !onlineSession.game) {
+        $("#waiting-status").textContent = message;
+        $("#waiting-status").classList.add("error");
+      } else {
+        localHint = message;
+        render();
+      }
     },
   });
+}
+
+function renderWaitingRoom(state) {
+  const selfIndex = state.playerIndex;
+  const opponentIndex = 1 - selfIndex;
+  const opponentConnected = state.connected[opponentIndex];
+  $("#waiting-self-role").textContent = selfIndex === 0 ? "HOST · あなた" : "GUEST · あなた";
+  $("#waiting-self-name").textContent = state.playerNames[selfIndex] ?? "あなた";
+  $("#waiting-self-status").textContent = state.connected[selfIndex] ? "接続中" : "再接続待ち";
+  $("#waiting-opponent-role").textContent = selfIndex === 0 ? "GUEST · 対戦相手" : "HOST · 対戦相手";
+  $("#waiting-opponent-name").textContent = state.playerNames[opponentIndex] ?? "対戦相手";
+  $("#waiting-opponent-status").textContent = opponentConnected ? "参加しました" : "参加待ち";
+  $("#waiting-player-opponent").classList.toggle("waiting-player-empty", !opponentConnected);
+  $("#waiting-mode").textContent = state.mode === "holdem" ? "テキサスホールデム" : "5カードドロー";
+  $("#waiting-title").textContent = opponentConnected ? "対戦の準備ができました" : "対戦相手を待っています";
+  $("#waiting-description").textContent = opponentConnected
+    ? (state.isHost ? "参加者がそろいました。対戦を開始できます。" : "ホストが対戦を開始するまでお待ちください。")
+    : "ルームコードを友達に共有してください。参加すると対戦を始められます。";
+  $("#waiting-status").textContent = opponentConnected ? "両プレイヤーが接続しています。" : "相手の参加を待っています…";
+  $("#waiting-status").classList.remove("error");
 }
 
 async function createOrJoinRoom(action) {
@@ -217,9 +259,10 @@ function exitOnlineRoom() {
   localPlayerIndex = 0;
   busy = false;
   localHint = "";
+  $("#room-waiting").classList.add("hidden");
   $("#game").classList.add("hidden");
+  elements.resultScreen.classList.add("hidden");
   $("#lobby").classList.remove("hidden");
-  $("#room-code-card").classList.add("hidden");
   $("#start-match-button").classList.add("hidden");
   $("#leave-room-button").classList.add("hidden");
   $("#cpu-mode-button").disabled = false;
@@ -250,6 +293,7 @@ function startGame() {
   localHint = "";
   cpuPeekedHand = null;
   elements.lobby.classList.add("hidden");
+  elements.resultScreen.classList.add("hidden");
   elements.game.classList.remove("hidden");
   render();
   scheduleCpu();
@@ -410,6 +454,26 @@ function render() {
   const opponentIndex = 1 - localPlayerIndex;
   const human = game.players[localPlayerIndex];
   const opponent = game.players[opponentIndex];
+  const matchOver = game.matchOver;
+  const localWinner = human.stack > opponent.stack;
+  const opponentWinner = opponent.stack > human.stack;
+  elements.game.classList.toggle("hidden", matchOver);
+  elements.resultScreen.classList.toggle("hidden", !matchOver);
+  if (matchOver) {
+    $("#result-title").textContent = localWinner ? "勝利" : opponentWinner ? "敗北" : "引き分け";
+    $("#result-message").textContent = game.notice;
+    $("#result-human-name").textContent = onlineClient ? human.name : "あなた";
+    $("#result-opponent-name").textContent = onlineClient ? opponent.name : "CPU";
+    $("#result-human-stack").textContent = String(human.stack);
+    $("#result-opponent-stack").textContent = String(opponent.stack);
+    $("#result-human").classList.toggle("is-winner", localWinner);
+    $("#result-opponent").classList.toggle("is-winner", opponentWinner);
+    $("#result-restart-button").disabled = busy || Boolean(onlineClient && !onlineSession?.isHost);
+    $("#result-restart-button").textContent = onlineClient ? "もう一度対戦する →" : "もう一度遊ぶ →";
+    $("#result-waiting").classList.toggle("hidden", !onlineClient || Boolean(onlineSession?.isHost));
+    $("#result-waiting").textContent = "ホストが新しいゲームを開始するまでお待ちください。";
+    $("#result-leave-button").classList.toggle("hidden", !onlineClient);
+  }
   $("#human-name").textContent = onlineClient ? human.name : "あなた";
   $("#opponent-name").textContent = onlineClient ? opponent.name : "CPU";
   $("#human-avatar").textContent = onlineClient ? human.name.slice(0, 3) : "YOU";

@@ -56,6 +56,8 @@ test("ルーム対戦はサーバーが進行を管理し、相手の手札を�
   const hostSession = await hostSessionResponse;
   const waitingState = await hostWaitingState;
   assert.equal(waitingState.game, null);
+  assert.equal(waitingState.mode, "draw");
+  assert.deepEqual(waitingState.playerNames, ["Host", null]);
 
   const guest = await connect(url);
   sockets.push(guest);

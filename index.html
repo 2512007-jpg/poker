@@ -56,16 +56,47 @@
             <label class="online-field">ルームコード<input id="join-room-code" maxlength="6" autocomplete="off" placeholder="例: A2BCDE"></label>
             <button id="join-room-button" class="button button-secondary button-wide">ルームに参加</button>
             <div id="room-status" class="room-status hidden" role="status"></div>
-            <div id="room-code-card" class="room-code-card hidden">
-              <span>ルームコード</span><strong id="room-code-value"></strong>
-              <small>対戦相手にこのコードを共有してください</small>
-            </div>
-            <button id="start-match-button" class="button button-primary button-wide hidden">このモードで対戦開始</button>
-            <button id="leave-room-button" class="button button-quiet button-wide hidden">ルームを退出</button>
           </div>
           <div class="rules-foot"><span>♢</span> 初期チップ 500　·　イカサマMP 5 / ラウンド</div>
         </div>
         <div class="lobby-note"><span>✦</span> イカサマはログに残らない。見抜くのは、あなた。</div>
+      </section>
+
+      <section id="room-waiting" class="room-waiting hidden" aria-labelledby="waiting-title">
+        <div class="waiting-card">
+          <span class="waiting-eyebrow">ONLINE ROOM · WAITING</span>
+          <div class="waiting-mark" aria-hidden="true">♠</div>
+          <h1 id="waiting-title">対戦相手を待っています</h1>
+          <p id="waiting-description" class="waiting-description">ルームコードを友達に共有してください。参加すると対戦を始められます。</p>
+
+          <div class="waiting-code">
+            <span>ルームコード</span>
+            <strong id="waiting-room-code"></strong>
+            <button id="copy-room-code-button" class="button button-secondary" type="button">コードをコピー</button>
+          </div>
+
+          <div class="waiting-players" aria-label="参加者">
+            <div id="waiting-player-self" class="waiting-player">
+              <span class="waiting-player-role" id="waiting-self-role"></span>
+              <strong id="waiting-self-name"></strong>
+              <span id="waiting-self-status" class="waiting-player-status"></span>
+            </div>
+            <span class="waiting-versus" aria-hidden="true">VS</span>
+            <div id="waiting-player-opponent" class="waiting-player waiting-player-empty">
+              <span class="waiting-player-role" id="waiting-opponent-role"></span>
+              <strong id="waiting-opponent-name"></strong>
+              <span id="waiting-opponent-status" class="waiting-player-status"></span>
+            </div>
+          </div>
+
+          <div class="waiting-meta">
+            <span>ゲームモード</span>
+            <strong id="waiting-mode"></strong>
+          </div>
+          <p id="waiting-status" class="waiting-status" role="status" aria-live="polite"></p>
+          <button id="start-match-button" class="button button-primary button-wide hidden" type="button">対戦を開始する <span aria-hidden="true">→</span></button>
+          <button id="leave-room-button" class="button button-quiet button-wide" type="button">ルームを退出</button>
+        </div>
       </section>
 
       <section id="game" class="game hidden" aria-label="ゲーム画面">
@@ -74,7 +105,10 @@
             <div class="eyebrow">ROUND <span id="round-number">1</span> <span class="heading-dot">·</span> <span id="mode-name">5カードドロー</span></div>
             <h1 id="street-name">ドロー</h1>
           </div>
-          <button id="new-game-button" class="button button-quiet">ゲームをやり直す</button>
+          <div class="game-heading-actions">
+            <button id="hand-rankings-button" class="button button-quiet" type="button">役の確認表</button>
+            <button id="new-game-button" class="button button-quiet">ゲームをやり直す</button>
+          </div>
         </div>
 
         <section class="table" aria-label="ポーカーテーブル">
@@ -144,12 +178,59 @@
         </div>
         <footer class="game-footer">イカサマポーカー <span>·</span> 読み合いは、静かに。</footer>
       </section>
+
+      <section id="result-screen" class="result-screen hidden" aria-labelledby="result-title" aria-live="polite">
+        <div class="result-card">
+          <div class="result-mark" aria-hidden="true">♠</div>
+          <span class="result-eyebrow">GAME OVER · MATCH RESULT</span>
+          <h1 id="result-title">勝利</h1>
+          <p id="result-message" class="result-message"></p>
+          <div class="result-scores" aria-label="最終チップ">
+            <div id="result-human" class="result-score">
+              <span id="result-human-name">あなた</span>
+              <strong id="result-human-stack">0</strong>
+              <small>チップ</small>
+            </div>
+            <div class="result-versus" aria-hidden="true">VS</div>
+            <div id="result-opponent" class="result-score">
+              <span id="result-opponent-name">CPU</span>
+              <strong id="result-opponent-stack">0</strong>
+              <small>チップ</small>
+            </div>
+          </div>
+          <p id="result-waiting" class="result-waiting hidden"></p>
+          <div class="result-actions">
+            <button id="result-restart-button" class="button button-primary" type="button">もう一度遊ぶ <span aria-hidden="true">→</span></button>
+            <button id="result-leave-button" class="button button-secondary hidden" type="button">ルームを退出</button>
+          </div>
+        </div>
+      </section>
     </main>
 
     <dialog id="action-dialog" class="action-dialog">
       <form method="dialog" id="dialog-form">
         <button class="dialog-close" value="cancel" aria-label="閉じる">×</button>
         <div id="dialog-content"></div>
+      </form>
+    </dialog>
+    <dialog id="hand-rankings-dialog" class="action-dialog hand-rankings-dialog" aria-labelledby="hand-rankings-title">
+      <form method="dialog">
+        <button class="dialog-close" value="close" aria-label="閉じる">×</button>
+        <h2 id="hand-rankings-title" class="dialog-title">ポーカーの役</h2>
+        <p class="dialog-copy">強い役から順に並んでいます。</p>
+        <ol class="hand-rankings">
+          <li><strong>ロイヤルフラッシュ</strong><span>10・J・Q・K・Aの同じスート</span></li>
+          <li><strong>ストレートフラッシュ</strong><span>連続した数字の同じスート</span></li>
+          <li><strong>フォーカード</strong><span>同じ数字が4枚</span></li>
+          <li><strong>フルハウス</strong><span>スリーカードとワンペアの組み合わせ</span></li>
+          <li><strong>フラッシュ</strong><span>5枚すべて同じスート</span></li>
+          <li><strong>ストレート</strong><span>スートに関係なく数字が5枚連続</span></li>
+          <li><strong>スリーカード</strong><span>同じ数字が3枚</span></li>
+          <li><strong>ツーペア</strong><span>ワンペアが2組</span></li>
+          <li><strong>ワンペア</strong><span>同じ数字が2枚</span></li>
+          <li><strong>ハイカード</strong><span>上記の役がない手札</span></li>
+        </ol>
+        <p class="rankings-note">ホールデムでは手札と共有カードから最も強い5枚で判定します。</p>
       </form>
     </dialog>
   </body>

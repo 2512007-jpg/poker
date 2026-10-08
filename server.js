@@ -38,6 +38,8 @@ function publicState(room, playerIndex) {
     return {
       game: null,
       roomCode: room.code,
+      mode: room.mode,
+      playerNames: room.players.map((player) => player?.name ?? null),
       playerIndex,
       isHost: playerIndex === 0,
       connected: room.players.map((player) => Boolean(player?.socket)),
