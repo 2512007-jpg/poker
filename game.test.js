@@ -23,14 +23,43 @@ test("両モードを開始し、ブラインドと手札を正しく配る", ()
   }
 });
 
-test("イカサマはMPを消費し、使用記録を対戦ログに残さない", () => {
+test("MPを使うイカサマはMPを消費し、使用記録を対戦ログに残さない", () => {
   const game = new PokerGame().startHand();
+  game.useCheat(0, "deck", { handIndex: 0, side: "top" });
+  game.useCheat(0, "deck", { handIndex: 0, side: "top" });
+  assert.equal(game.players[0].mp, 1);
+  assert.deepEqual(game.cheatUsed[0], ["deck", "deck"]);
+  assert.ok(game.logs.every((line) => !line.includes("山札操作")));
+  assert.throws(() => game.useCheat(0, "peek"), /MPが足りません/);
+});
+
+test("書き換えはMPを消費しない", () => {
+  const game = new PokerGame().startHand();
+  game.players[0].mp = 0;
   const card = game.useCheat(0, "rewrite", { handIndex: 0, suit: "♦", rank: 14 });
   assert.deepEqual(card.card, game.players[0].hand[0]);
-  assert.equal(game.players[0].mp, 1);
-  assert.deepEqual(game.cheatUsed[0], ["rewrite"]);
-  assert.ok(game.logs.every((line) => !line.includes("書き換え")));
-  assert.throws(() => game.useCheat(0, "peek"), /MPが足りません/);
+  assert.equal(game.players[0].mp, 0);
+  assert.equal(game.players[0].rewriteUses, 1);
+});
+
+test("書き換えは対戦全体で各プレイヤー2回まで", () => {
+  const game = new PokerGame().startHand();
+  for (let i = 0; i < 2; i += 1) {
+    game.useCheat(0, "rewrite", { handIndex: 0, suit: "♦", rank: 14 });
+    game.startHand();
+  }
+
+  const originalCard = { ...game.players[0].hand[0] };
+  assert.equal(game.players[0].rewriteUses, 2);
+  assert.throws(
+    () => game.useCheat(0, "rewrite", { handIndex: 0, suit: "♣", rank: 2 }),
+    /書き換えは対戦中2回まで/,
+  );
+  assert.deepEqual(game.players[0].hand[0], originalCard);
+  assert.equal(game.players[0].mp, 5);
+
+  game.useCheat(1, "rewrite", { handIndex: 0, suit: "♣", rank: 2 });
+  assert.equal(game.players[1].rewriteUses, 1);
 });
 
 test("透視は指定した3枚だけを返し、ホールデムでは手札2枚を確認する", () => {

@@ -381,9 +381,11 @@ function cpuAct() {
 
 function cpuCheat() {
   const player = game.players[1];
-  if (player.mp < 2) return false;
-  const choices = CHEATS.filter(({ cost }) => cost <= player.mp);
-  const selected = choices[Math.floor(Math.random() * choices.length)];
+  const choices = CHEATS.filter(({ cost = 0, id, maxUses }) => (
+    cost <= player.mp && (id !== "rewrite" || player.rewriteUses < maxUses)
+  ));
+  if (choices.length === 0) return false;
+  const selected = choices[Math.floor(Math.random() * choices.length)].id;
   if (selected === "peek") {
     const indices = player.hand
       .map((card, index) => ({ card, index }))
@@ -567,11 +569,15 @@ function renderActions() {
     button.type = "button";
     button.className = "cheat-button";
     button.dataset.cheat = cheat.id;
-    button.disabled = busy || !["bet", "draw"].includes(game.phase) || localPlayer.mp < cheat.cost;
+    const rewriteLimitReached = cheat.id === "rewrite" && localPlayer.rewriteUses >= cheat.maxUses;
+    const lacksMp = cheat.cost !== undefined && localPlayer.mp < cheat.cost;
+    button.disabled = busy || !["bet", "draw"].includes(game.phase) || lacksMp || rewriteLimitReached;
     const title = document.createElement("strong");
     title.textContent = cheat.label;
     const cost = document.createElement("span");
-    cost.textContent = `${cheat.cost} MP`;
+    cost.textContent = cheat.maxUses !== undefined
+      ? `残り${Math.max(0, cheat.maxUses - localPlayer.rewriteUses)}回`
+      : `${cheat.cost} MP`;
     button.append(title, cost);
     return button;
   }));
@@ -622,7 +628,8 @@ function openCheatDialog(cheatId) {
   const cheat = CHEATS.find(({ id }) => id === cheatId);
   const player = game?.players[localPlayerIndex];
   const opponent = game?.players[1 - localPlayerIndex];
-  if (!game || !cheat || player.mp < cheat.cost) return;
+  if (!game || !cheat || (cheat.cost !== undefined && player.mp < cheat.cost)
+    || (cheat.id === "rewrite" && player.rewriteUses >= cheat.maxUses)) return;
   const handFields = [{ name: "handIndex", label: "対象の手札", options: player.hand.map((card, index) => [String(index), `カード ${index + 1}${card ? `（${cardLabel(card)}）` : ""}`]) }];
   let fields = [];
   let description = cheat.description;
@@ -657,7 +664,9 @@ function openCheatDialog(cheatId) {
   }
 
   showDialog({
-    title: `${cheat.label} · ${cheat.cost} MP`,
+    title: cheat.cost === undefined
+      ? `${cheat.label} · 残り${cheat.maxUses - player.rewriteUses}回`
+      : `${cheat.label} · ${cheat.cost} MP`,
     description,
     fields,
     confirm: cheatId === "peek" ? "透視する" : cheatId === "sleeve" && player.sleeve ? "交換する" : "発動する",

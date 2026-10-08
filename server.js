@@ -51,6 +51,7 @@ function publicState(room, playerIndex) {
     stack: player.stack,
     hand: index === playerIndex || game.revealed ? player.hand : player.hand.map(() => null),
     mp: index === playerIndex ? player.mp : null,
+    rewriteUses: index === playerIndex ? player.rewriteUses : null,
     sleeve: index === playerIndex ? Boolean(player.sleeve) : false,
     lockedOut: index === playerIndex ? player.lockedOut : false,
     streetBet: player.streetBet ?? 0,
