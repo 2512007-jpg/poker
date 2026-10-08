@@ -97,9 +97,29 @@ test("正しいダウトでラウンドに勝ち、誤った指摘は再指摘�
   assert.ok(caught.players[0].stack > 500);
 
   const missed = new PokerGame().startHand();
-  assert.equal(missed.challenge(0, "rewrite").success, false);
+  const challengerStack = missed.players[0].stack;
+  const opponentStack = missed.players[1].stack;
+  const result = missed.challenge(0, "rewrite");
+  assert.equal(result.success, false);
+  assert.equal(result.penalty, 50);
+  assert.equal(missed.players[0].stack, challengerStack - 50);
+  assert.equal(missed.players[1].stack, opponentStack + 50);
+  assert.equal(missed.players[0].stack + missed.players[1].stack + missed.pot, 1000);
+  assert.match(missed.notice, /50チップを相手に渡し/);
   assert.equal(missed.players[0].lockedOut, true);
   assert.throws(() => missed.challenge(0, "peek"), /再度ダウトできません/);
+});
+
+test("50チップ未満しか持っていない場合は所持分を相手に渡す", () => {
+  const game = new PokerGame().startHand();
+  game.players[0].stack = 30;
+  game.players[1].stack = 500;
+  const result = game.challenge(0, "rewrite");
+  assert.equal(result.penalty, 30);
+  assert.equal(game.players[0].stack, 0);
+  assert.equal(game.players[1].stack, 545);
+  assert.equal(game.pot, 0);
+  assert.equal(game.phase, "gameover");
 });
 
 test("ドロー交換、ベッティング、ホールデムのコミュニティカードが進行する", () => {

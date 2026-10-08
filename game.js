@@ -364,11 +364,11 @@ export class PokerGame {
       this.checkMatchOver();
       return { success: true, penalty, wonPot };
     }
-    const penalty = Math.min(challenger.stack, Math.max(10, Math.floor(this.pot / 4)));
+    const penalty = Math.min(challenger.stack, 50);
     challenger.stack -= penalty;
     target.stack += penalty;
     challenger.lockedOut = true;
-    this.notice = `ダウト失敗。${penalty}チップを支払い、このラウンドは再指摘できません。`;
+    this.notice = `ダウト失敗。${penalty}チップを相手に渡し、このラウンドは再指摘できません。`;
     this.logs.push(`${challenger.name}のダウト失敗。`);
     this.checkMatchOver();
     return { success: false, penalty };

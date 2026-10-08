@@ -245,7 +245,7 @@ async function sendOnline(type, fields = {}) {
         localHint = `書き換えました：${cardLabel(result.card)}`;
       }
     } else if (type === "challenge") {
-      localHint = result.success ? "ダウト成功！" : `ダウト失敗。${result.penalty}チップを支払いました。`;
+      localHint = result.success ? "ダウト成功！" : `ダウト失敗。相手に${result.penalty}チップを渡しました。`;
     }
   } catch (error) {
     localHint = error.message;
@@ -613,7 +613,7 @@ function openDoubtDialog() {
   if (!game || game.players[localPlayerIndex].lockedOut || !["bet", "draw"].includes(game.phase)) return;
   showDialog({
     title: "ダウト（指摘）",
-    description: "相手がこのラウンドに使ったと思うイカサマを選んでください。成功すればラウンド勝利。失敗するとチップを失い、このラウンドは再指摘できません。",
+    description: "相手がこのラウンドに使ったと思うイカサマを選んでください。成功すればラウンド勝利。失敗すると相手に50チップを渡し、このラウンドは再指摘できません。",
     fields: [{ name: "cheatId", label: "指摘するイカサマ", options: CHEATS.map(({ id, label }) => [id, label]) }],
     confirm: "指摘する",
     onConfirm: (data) => {
