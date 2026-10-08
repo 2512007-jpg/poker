@@ -98,6 +98,18 @@ test("ルーム対戦はサーバーが進行を管理し、相手の手札を�
   assert.deepEqual(guestCheatState.game.players[0].hand, [null, null, null, null, null]);
   assert.deepEqual(hostCheatState.game.players[1].hand, [null, null, null, null, null]);
 
+  const hostSleeveState = nextMessage(host, (message) => message.type === "state");
+  const guestSleeveState = nextMessage(guest, (message) => message.type === "state");
+  await sendRequest(host, "cheat", {
+    cheatId: "sleeve",
+    options: { handIndex: 0 },
+  });
+  const hostSleeveView = await hostSleeveState;
+  const guestSleeveView = await guestSleeveState;
+  assert.deepEqual(hostSleeveView.game.players[0].sleeve, hostView.game.players[0].hand[0]);
+  assert.equal(hostSleeveView.game.players[1].sleeve, null);
+  assert.equal(guestSleeveView.game.players[0].sleeve, null);
+
   await new Promise((resolve) => {
     guest.once("close", resolve);
     guest.close();

@@ -52,7 +52,7 @@ function publicState(room, playerIndex) {
     hand: index === playerIndex || game.revealed ? player.hand : player.hand.map(() => null),
     mp: index === playerIndex ? player.mp : null,
     rewriteUses: index === playerIndex ? player.rewriteUses : null,
-    sleeve: index === playerIndex ? Boolean(player.sleeve) : false,
+    sleeve: index === playerIndex ? player.sleeve : null,
     lockedOut: index === playerIndex ? player.lockedOut : false,
     streetBet: player.streetBet ?? 0,
   }));

@@ -496,6 +496,7 @@ function render() {
   $("#human-mp").textContent = String(human.mp);
   $("#mp-fill").style.width = `${human.mp * 20}%`;
   $("#sleeve-status").classList.toggle("hidden", !human.sleeve);
+  renderCards($("#sleeve-card"), human.sleeve ? [human.sleeve] : [], false, false);
   $("#cpu-status").textContent = game.phase === "settled" || game.phase === "gameover" ? "ラウンド終了" : onlineClient && !onlineSession?.connected[opponentIndex] ? "再接続待ち" : "対戦中";
   $("#human-status").textContent = game.phase === "settled" || game.phase === "gameover" ? "ラウンド終了" : isHumanTurn() ? "あなたの番" : "対戦中";
 
