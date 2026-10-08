@@ -10,6 +10,7 @@ const elements = {
   dialogForm: $("#dialog-form"),
   dialogContent: $("#dialog-content"),
   notice: $("#notice"),
+  cheatAlert: $("#cheat-alert"),
   cpuCards: $("#cpu-cards"),
   humanCards: $("#human-cards"),
   communityCards: $("#community-cards"),
@@ -139,7 +140,10 @@ function createOnlineClient() {
       $("#cpu-mode-button").disabled = true;
       $("#online-mode-button").disabled = true;
       $("#leave-room-button").classList.remove("hidden");
-      if (previousHandNumber && game?.handNumber !== previousHandNumber) clearTemporaryPeek();
+      if (previousHandNumber && game?.handNumber !== previousHandNumber) {
+        clearTemporaryPeek();
+        clearOpponentTell();
+      }
       $("#waiting-room-code").textContent = state.roomCode;
       $("#start-match-button").classList.toggle("hidden", !state.isHost || Boolean(state.game));
       $("#start-match-button").disabled = state.connected.some((connected) => !connected);
@@ -156,6 +160,7 @@ function createOnlineClient() {
         render();
       }
     },
+    onOpponentTell: showOpponentTell,
     onDisconnect: (message) => {
       if (onlineSession && !onlineSession.game) {
         $("#waiting-status").textContent = message;
@@ -407,11 +412,12 @@ function cpuCheat() {
 function showOpponentTell() {
   if (opponentTellTimeout) window.clearTimeout(opponentTellTimeout);
   opponentTell = true;
+  render();
   opponentTellTimeout = window.setTimeout(() => {
     opponentTell = false;
     opponentTellTimeout = null;
     render();
-  }, 2500);
+  }, 4500);
 }
 
 function clearOpponentTell() {
@@ -499,6 +505,7 @@ function render() {
   renderActions();
   renderLogs();
   renderNotice();
+  elements.cheatAlert.classList.toggle("hidden", !opponentTell);
 
   const message = game.phase === "gameover"
     ? "ゲーム終了"
@@ -509,7 +516,7 @@ function render() {
         : game.phase === "bet"
           ? (game.turn === localPlayerIndex ? "あなたの番です" : `${onlineClient ? "相手" : "CPU"}の番です`)
           : "対戦を開始してください";
-  $("#table-message").textContent = opponentTell ? "違和感がある…" : localHint || game.notice || message;
+  $("#table-message").textContent = localHint || game.notice || message;
 }
 
 function isHumanTurn() {
@@ -592,7 +599,7 @@ function renderLogs() {
 }
 
 function renderNotice() {
-  const show = !opponentTell && (Boolean(game.notice) || Boolean(localHint));
+  const show = Boolean(game.notice) || Boolean(localHint);
   elements.notice.classList.toggle("hidden", !show);
   elements.notice.textContent = localHint || game.notice;
 }

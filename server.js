@@ -257,6 +257,7 @@ export function createPokerServer() {
         }
         const result = room.game.useCheat(index, message.cheatId, message.options);
         send(socket, { type: "result", requestId, result });
+        send(room.players[1 - index]?.socket, { type: "opponentTell" });
       } else if (message.type === "challenge") {
         const result = room.game.challenge(index, message.cheatId);
         send(socket, { type: "result", requestId, result });

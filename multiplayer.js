@@ -1,6 +1,7 @@
 export class MultiplayerClient {
-  constructor({ onState, onDisconnect }) {
+  constructor({ onState, onOpponentTell, onDisconnect }) {
     this.onState = onState;
+    this.onOpponentTell = onOpponentTell;
     this.onDisconnect = onDisconnect;
     this.socket = null;
     this.pending = new Map();
@@ -50,6 +51,7 @@ export class MultiplayerClient {
       return;
     }
     if (message.type === "state") this.onState?.(message);
+    if (message.type === "opponentTell") this.onOpponentTell?.();
     if (message.type === "roomClosed") {
       this.closedByServer = true;
       sessionStorage.removeItem("pokerOnlineSession");

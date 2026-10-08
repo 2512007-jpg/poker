@@ -85,12 +85,14 @@ test("ルーム対戦はサーバーが進行を管理し、相手の手札を�
 
   const hostAfterCheat = nextMessage(host, (message) => message.type === "state");
   const guestAfterCheat = nextMessage(guest, (message) => message.type === "state");
+  const guestOpponentTell = nextMessage(guest, (message) => message.type === "opponentTell");
   const privatePeek = await sendRequest(host, "cheat", {
     cheatId: "peek",
     options: { handIndices: [0, 1, 2] },
   });
   const hostCheatState = await hostAfterCheat;
   const guestCheatState = await guestAfterCheat;
+  assert.equal((await guestOpponentTell).type, "opponentTell");
   assert.equal(privatePeek.type, "result");
   assert.equal(privatePeek.result.length, 3);
   assert.deepEqual(guestCheatState.game.players[0].hand, [null, null, null, null, null]);
