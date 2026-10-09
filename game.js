@@ -4,6 +4,7 @@ export const CHEATS = [
   { id: "peek", label: "透視", cost: 3, description: "相手の手札から選んだ3枚を見る" },
   { id: "deck", label: "山札操作", cost: 2, description: "山札から1枚引いて交換" },
   { id: "sleeve", label: "袖の下", cost: 2, description: "カードを隠して後で交換" },
+  { id: "discard", label: "捨て札取り", cost: 2, description: "捨て札から1枚を取り出して手札に加える" },
   { id: "rewrite", label: "書き換え", maxUses: 2, description: "MPを消費せず、対戦中各プレイヤー2回までカードの数字・スートを変更" },
 ];
 
@@ -326,6 +327,13 @@ export class PokerGame {
         player.hand[options.handIndex] = this.drawTop();
         result = { action: "隠す", card: { ...player.hand[options.handIndex] } };
       }
+    } else if (cheatId === "discard") {
+      this.validateHandIndex(options.handIndex, player.hand.length);
+      if (this.discard.length === 0) throw new Error("捨て札がありません。");
+      const replacement = this.discard.pop();
+      this.discard.push(player.hand[options.handIndex]);
+      player.hand[options.handIndex] = { ...replacement };
+      result = { handIndex: options.handIndex, card: { ...player.hand[options.handIndex] } };
     } else {
       this.validateHandIndex(options.handIndex, player.hand.length);
       if (!SUITS.includes(options.suit) || !RANKS.includes(Number(options.rank))) {

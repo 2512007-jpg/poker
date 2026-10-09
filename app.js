@@ -241,6 +241,8 @@ async function sendOnline(type, fields = {}) {
         localHint = `引いたカード：${cardLabel(result.card)}`;
       } else if (cheatId === "sleeve") {
         localHint = result.action === "隠す" ? "カードを袖に隠しました。" : "袖のカードと手札を交換しました。";
+      } else if (cheatId === "discard") {
+        localHint = `捨て札から${cardLabel(result.card)}を取り出しました。`;
       } else {
         localHint = `書き換えました：${cardLabel(result.card)}`;
       }
@@ -400,6 +402,9 @@ function cpuCheat() {
     cpuPeekedHand = game.useCheat(1, selected, { handIndices: indices });
   } else if (selected === "deck") {
     game.useCheat(1, selected, { handIndex: weakestCardIndex(player.hand), side: "top" });
+  } else if (selected === "discard") {
+    if (game.discard.length === 0) return false;
+    game.useCheat(1, selected, { handIndex: weakestCardIndex(player.hand) });
   } else if (selected === "rewrite") {
     const index = weakestCardIndex(player.hand);
     game.useCheat(1, selected, { handIndex: index, suit: player.hand[0].suit, rank: Math.min(14, player.hand[index].rank + 3) });
@@ -653,6 +658,9 @@ function openCheatDialog(cheatId) {
     description = player.sleeve
       ? "隠しておいたカードを選んだ手札と交換します。使用には2MPかかります。"
       : "選んだカードを隠し、山札から1枚引いて手札に補充します。後で交換できます。";
+  } else if (cheatId === "discard") {
+    fields = handFields;
+    description = "捨て札の中から1枚を取り出して、自分の手札を差し替えます。";
   } else if (cheatId === "rewrite") {
     fields = [
       ...handFields,
@@ -677,7 +685,7 @@ function openCheatDialog(cheatId) {
       : `${cheat.label} · ${cheat.cost} MP`,
     description,
     fields,
-    confirm: cheatId === "peek" ? "透視する" : cheatId === "sleeve" && player.sleeve ? "交換する" : "発動する",
+    confirm: cheatId === "peek" ? "透視する" : cheatId === "sleeve" && player.sleeve ? "交換する" : cheatId === "discard" ? "取り出す" : "発動する",
     onConfirm: (data) => {
       const options = {
         ...data,
@@ -704,6 +712,8 @@ function openCheatDialog(cheatId) {
         localHint = `引いたカード：${cardLabel(result.card)}`;
       } else if (cheatId === "sleeve") {
         localHint = result.action === "隠す" ? "カードを袖に隠しました。" : "袖のカードと手札を交換しました。";
+      } else if (cheatId === "discard") {
+        localHint = `捨て札から${cardLabel(result.card)}を取り出しました。`;
       } else {
         localHint = `書き換えました：${cardLabel(result.card)}`;
       }

@@ -87,6 +87,17 @@ test("袖の下は手札を預け、後から別のカードと交換する", ()
   assert.equal(game.players[0].mp, 1);
 });
 
+test("捨て札取りで捨て札を手札に加えられる", () => {
+  const game = new PokerGame().startHand();
+  const source = { suit: "♣", rank: 7 };
+  game.discard.push(source);
+  const before = { ...game.players[0].hand[0] };
+  game.useCheat(0, "discard", { handIndex: 0 });
+  assert.deepEqual(game.players[0].hand[0], source);
+  assert.deepEqual(game.discard[game.discard.length - 1], before);
+  assert.equal(game.players[0].mp, 3);
+});
+
 test("正しいダウトでラウンドに勝ち、誤った指摘は再指摘をロックする", () => {
   const caught = new PokerGame().startHand();
   caught.useCheat(1, "peek", { handIndices: [0, 1, 2] });
