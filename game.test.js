@@ -30,7 +30,25 @@ test("MPを使うイカサマはMPを消費し、使用記録を対戦ログに�
   assert.equal(game.players[0].mp, 1);
   assert.deepEqual(game.cheatUsed[0], ["deck", "deck"]);
   assert.ok(game.logs.every((line) => !line.includes("山札操作")));
-  assert.throws(() => game.useCheat(0, "peek"), /MPが足りません/);
+  game.useCheat(0, "peek", { handIndices: [0, 1, 2] });
+  assert.equal(game.players[0].mp, 0);
+  assert.throws(() => game.useCheat(0, "deck", { handIndex: 0, side: "top" }), /MPが足りません/);
+});
+
+test("凝視は3MPを消費し、ダウト対象にならずラウンド中有効", () => {
+  const game = new PokerGame().startHand();
+  const result = game.useCheat(0, "gaze");
+
+  assert.deepEqual(result, { active: true });
+  assert.equal(game.players[0].mp, 2);
+  assert.equal(game.players[0].gazeActive, true);
+  assert.deepEqual(game.cheatUsed[0], []);
+  assert.throws(() => game.useCheat(0, "gaze"), /すでに使用中/);
+  assert.throws(() => game.challenge(1, "gaze"), /指摘する種類を選択/);
+
+  game.startHand();
+  assert.equal(game.players[0].gazeActive, false);
+  assert.equal(game.players[0].mp, 5);
 });
 
 test("書き換えはMPを消費しない", () => {
@@ -68,7 +86,7 @@ test("透視は指定した3枚だけを返し、ホールデムでは手札2枚
   const seen = draw.useCheat(0, "peek", { handIndices: [0, 2, 4] });
   assert.deepEqual(seen.map(({ index }) => index), [0, 2, 4]);
   assert.deepEqual(seen.map(({ card }) => card), expected);
-  assert.equal(draw.players[0].mp, 2);
+  assert.equal(draw.players[0].mp, 4);
   assert.throws(() => new PokerGame({ mode: "draw" }).startHand().useCheat(0, "peek", { handIndices: [0, 1] }), /3枚を選択/);
 
   const holdem = new PokerGame({ mode: "holdem" }).startHand();
@@ -98,6 +116,40 @@ test("捨て札取りで捨て札を手札に加えられる", () => {
   assert.equal(game.players[0].mp, 3);
 });
 
+test("三枚取りはドローフェーズのみ3枚を交換し、2MPを消費する", () => {
+  const game = new PokerGame({ random: () => 0.5 }).startHand();
+  assert.throws(
+    () => game.useCheat(0, "tripleDraw", { handIndices: [0, 1, 2] }),
+    /三枚取りはドローフェーズのみ/,
+  );
+  game.act(game.turn, "call");
+  game.act(game.turn, "check");
+
+  assert.throws(
+    () => game.useCheat(0, "tripleDraw", { handIndices: [0, 1, 1] }),
+    /3枚選択/,
+  );
+  const indices = [0, 2, 4];
+  const previousCards = indices.map((index) => game.players[0].hand[index]);
+  const expectedDraws = [...game.deck].slice(-3).reverse();
+  const result = game.useCheat(0, "tripleDraw", { handIndices: indices });
+  assert.deepEqual(result.handIndices, indices);
+  assert.equal(result.cards.length, 3);
+  assert.deepEqual(indices.map((index) => game.players[0].hand[index]), expectedDraws);
+  assert.ok(indices.every((index) => !previousCards.includes(game.players[0].hand[index])));
+  assert.equal(game.discard.length, 3);
+  assert.equal(game.players[0].mp, 3);
+  assert.deepEqual(game.cheatUsed[0], ["tripleDraw"]);
+});
+
+test("三枚取りはホールデムでは使えない", () => {
+  const game = new PokerGame({ mode: "holdem" }).startHand();
+  assert.throws(
+    () => game.useCheat(0, "tripleDraw", { handIndices: [0, 1, 1] }),
+    /三枚取りはドローフェーズのみ/,
+  );
+});
+
 test("正しいダウトでラウンドに勝ち、誤った指摘は再指摘をロックする", () => {
   const caught = new PokerGame().startHand();
   caught.useCheat(1, "peek", { handIndices: [0, 1, 2] });
@@ -119,6 +171,32 @@ test("正しいダウトでラウンドに勝ち、誤った指摘は再指摘�
   assert.match(missed.notice, /50チップを相手に渡し/);
   assert.equal(missed.players[0].lockedOut, true);
   assert.throws(() => missed.challenge(0, "peek"), /再度ダウトできません/);
+});
+
+test("複数のイカサマを指摘し、いずれかが一致すればダウトに成功する", () => {
+  const game = new PokerGame().startHand();
+  game.useCheat(1, "peek", { handIndices: [0, 1, 2] });
+  game.useCheat(1, "deck", { handIndex: 0, side: "top" });
+
+  assert.equal(game.challenge(0, ["rewrite", "deck", "peek"]).success, true);
+  assert.equal(game.phase, "gameover");
+});
+
+test("複数選択でも使用したイカサマと一致しなければダウトに失敗する", () => {
+  const game = new PokerGame().startHand();
+  game.useCheat(1, "peek", { handIndices: [0, 1, 2] });
+  const challengerStack = game.players[0].stack;
+
+  const result = game.challenge(0, ["deck", "rewrite"]);
+  assert.equal(result.success, false);
+  assert.equal(game.players[0].stack, challengerStack - 50);
+});
+
+test("ダウトは対象可能なイカサマを1つ以上選ぶ必要がある", () => {
+  const game = new PokerGame().startHand();
+
+  assert.throws(() => game.challenge(0, []), /指摘する種類を選択/);
+  assert.throws(() => game.challenge(0, ["peek", "gaze"]), /指摘する種類を選択/);
 });
 
 test("50チップ未満しか持っていない場合は所持分を相手に渡す", () => {

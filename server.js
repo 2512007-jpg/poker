@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { WebSocketServer, WebSocket } from "ws";
-import { PokerGame } from "./game.js";
+import { CHEATS, PokerGame } from "./game.js";
 
 const ROOM_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const ROOM_TTL = 2 * 60 * 60 * 1000;
@@ -54,6 +54,7 @@ function publicState(room, playerIndex) {
     rewriteUses: index === playerIndex ? player.rewriteUses : null,
     sleeve: index === playerIndex ? player.sleeve : null,
     lockedOut: index === playerIndex ? player.lockedOut : false,
+    gazeActive: index === playerIndex ? player.gazeActive : false,
     streetBet: player.streetBet ?? 0,
   }));
 
@@ -257,9 +258,12 @@ export function createPokerServer() {
         }
         const result = room.game.useCheat(index, message.cheatId, message.options);
         send(socket, { type: "result", requestId, result });
-        send(room.players[1 - index]?.socket, { type: "opponentTell" });
+        const cheat = CHEATS.find(({ id }) => id === message.cheatId);
+        if (cheat?.challengeable !== false && room.game.players[1 - index].gazeActive) {
+          send(room.players[1 - index]?.socket, { type: "opponentTell" });
+        }
       } else if (message.type === "challenge") {
-        const result = room.game.challenge(index, message.cheatId);
+        const result = room.game.challenge(index, message.cheatIds ?? message.cheatId);
         send(socket, { type: "result", requestId, result });
       } else {
         throw new Error("不明なリクエストです。");

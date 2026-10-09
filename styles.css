@@ -189,9 +189,15 @@ button { color: inherit; }
 .cheat-button { min-height: 35px; display: grid; justify-items: center; gap: 2px; padding: 4px; border: 1px solid #3e5046; border-radius: 7px; color: #dde1d8; background: #202e28; cursor: pointer; }
 .cheat-button:hover:not(:disabled) { border-color: #9bbd6b; background: #2a3d30; }
 .cheat-button:disabled { cursor: not-allowed; opacity: .42; }
+.cheat-button.is-active { border-color: #9bbd6b; color: #f2f3d0; background: #324634; box-shadow: inset 0 0 0 1px #9bbd6b55; opacity: .78; }
+.cheat-button[data-cheat="gaze"] { position: relative; border-color: #70383c; color: #f1dcda; background: linear-gradient(145deg, #382326, #21191c 72%); box-shadow: inset 0 0 10px #a43b3b24, 0 0 8px #8c242426; }
+.cheat-button[data-cheat="gaze"]::before { position: absolute; top: 5px; right: 6px; width: 10px; height: 7px; border-radius: 50%; background: radial-gradient(ellipse at center, #190b0c 0 17%, #f0c4b8 19% 31%, #c74850 34% 57%, #601f29 61%); box-shadow: 0 0 7px #e44f5b8c; content: ""; animation: gaze-eye 3.2s ease-in-out infinite; }
+.cheat-button[data-cheat="gaze"]:hover:not(:disabled) { border-color: #c26568; background: linear-gradient(145deg, #54272d, #281b20 72%); box-shadow: inset 0 0 12px #bd414138, 0 0 12px #b52e3a4d; }
+.cheat-button[data-cheat="gaze"].is-active { border-color: #c45b61; color: #ffe3df; background: linear-gradient(145deg, #602a31, #301b21 72%); box-shadow: inset 0 0 13px #df4d584a, 0 0 12px #bc35444f; opacity: .9; }
 .cheat-button strong { font-size: 10px; }
 .cheat-button span { color: #9dad9f; font: 8px var(--mono); }
 .special-actions .button-doubt { grid-column: 1 / -1; min-height: 35px; font-size: 10px; }
+@keyframes gaze-eye { 0%, 100% { opacity: .55; box-shadow: 0 0 5px #e44f5b70; } 50% { opacity: 1; box-shadow: 0 0 10px #f65a658c; } }
 .privacy-note { margin: 10px 0 0; color: #7f8f85; font-size: 9px; text-align: center; }
 .draw-actions { display: grid; justify-items: start; gap: 10px; }
 .draw-actions span { color: #b3beb5; font-size: 10px; }
@@ -395,5 +401,5 @@ button { color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
-  .cheat-alert { animation: none; }
+  .cheat-alert, .cheat-button[data-cheat="gaze"]::before { animation: none; }
 }

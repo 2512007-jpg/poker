@@ -1,11 +1,13 @@
 export const SUITS = ["♠", "♥", "♦", "♣"];
 export const RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 export const CHEATS = [
-  { id: "peek", label: "透視", cost: 3, description: "相手の手札から選んだ3枚を見る" },
+  { id: "peek", label: "透視", cost: 1, description: "相手の手札から選んだ3枚を見る" },
   { id: "deck", label: "山札操作", cost: 2, description: "山札から1枚引いて交換" },
   { id: "sleeve", label: "袖の下", cost: 2, description: "カードを隠して後で交換" },
   { id: "discard", label: "捨て札取り", cost: 2, description: "捨て札から1枚を取り出して手札に加える" },
+  { id: "tripleDraw", label: "三枚取り", cost: 2, description: "手札の3枚を山札から引いたカードと交換" },
   { id: "rewrite", label: "書き換え", maxUses: 2, description: "MPを消費せず、対戦中各プレイヤー2回までカードの数字・スートを変更" },
+  { id: "gaze", label: "凝視", cost: 3, challengeable: false, description: "このラウンド中、相手のイカサマ使用を感知する" },
 ];
 
 const rankNames = {
@@ -100,8 +102,8 @@ export class PokerGame {
     this.mode = mode;
     this.random = random;
     this.players = [
-      { name: names[0], stack: 500, mp: 5, hand: [], cheats: [], rewriteUses: 0, sleeve: null, lockedOut: false },
-      { name: names[1], stack: 500, mp: 5, hand: [], cheats: [], rewriteUses: 0, sleeve: null, lockedOut: false },
+      { name: names[0], stack: 500, mp: 5, hand: [], cheats: [], rewriteUses: 0, sleeve: null, lockedOut: false, gazeActive: false },
+      { name: names[1], stack: 500, mp: 5, hand: [], cheats: [], rewriteUses: 0, sleeve: null, lockedOut: false, gazeActive: false },
     ];
     this.handNumber = 0;
     this.logs = [];
@@ -130,6 +132,7 @@ export class PokerGame {
       player.cheats = [];
       player.sleeve = null;
       player.lockedOut = false;
+      player.gazeActive = false;
     });
     const count = this.mode === "holdem" ? 2 : 5;
     for (let i = 0; i < count; i += 1) {
@@ -295,9 +298,13 @@ export class PokerGame {
     const player = this.players[playerIndex];
     const cheat = CHEATS.find(({ id }) => id === cheatId);
     if (!cheat) throw new Error("イカサマの種類が不正です。");
+    if (cheatId === "tripleDraw" && (this.mode !== "draw" || this.phase !== "draw")) {
+      throw new Error("三枚取りはドローフェーズのみ使用できます。");
+    }
     if (cheat.maxUses !== undefined && player.rewriteUses >= cheat.maxUses) {
       throw new Error(`${cheat.label}は対戦中${cheat.maxUses}回までです。`);
     }
+    if (cheatId === "gaze" && player.gazeActive) throw new Error("凝視はこのラウンドですでに使用中です。");
     if (cheat.cost !== undefined && player.mp < cheat.cost) throw new Error("MPが足りません。");
     const opponent = this.players[1 - playerIndex];
     let result;
@@ -334,6 +341,23 @@ export class PokerGame {
       this.discard.push(player.hand[options.handIndex]);
       player.hand[options.handIndex] = { ...replacement };
       result = { handIndex: options.handIndex, card: { ...player.hand[options.handIndex] } };
+    } else if (cheatId === "tripleDraw") {
+      const indices = options.handIndices;
+      if (!Array.isArray(indices)
+        || indices.length !== 3
+        || indices.some((index) => !Number.isInteger(index) || index < 0 || index >= player.hand.length)
+        || new Set(indices).size !== indices.length) {
+        throw new Error("交換する手札を3枚選択してください。");
+      }
+      const cards = indices.map((index) => {
+        this.discard.push(player.hand[index]);
+        player.hand[index] = this.drawTop();
+        return { ...player.hand[index] };
+      });
+      result = { handIndices: [...indices], cards };
+    } else if (cheatId === "gaze") {
+      player.gazeActive = true;
+      result = { active: true };
     } else {
       this.validateHandIndex(options.handIndex, player.hand.length);
       if (!SUITS.includes(options.suit) || !RANKS.includes(Number(options.rank))) {
@@ -344,8 +368,10 @@ export class PokerGame {
       result = { handIndex: options.handIndex, card: { ...player.hand[options.handIndex] } };
     }
     if (cheat.cost !== undefined) player.mp -= cheat.cost;
-    player.cheats.push(cheatId);
-    this.cheatUsed[playerIndex].push(cheatId);
+    if (cheat.challengeable !== false) {
+      player.cheats.push(cheatId);
+      this.cheatUsed[playerIndex].push(cheatId);
+    }
     return result;
   }
 
@@ -353,14 +379,18 @@ export class PokerGame {
     if (!Number.isInteger(index) || index < 0 || index >= length) throw new Error("カードを選択してください。");
   }
 
-  challenge(challengerIndex, cheatId) {
+  challenge(challengerIndex, cheatInput) {
     if (!["bet", "draw"].includes(this.phase)) throw new Error("ダウトできるラウンドではありません。");
     const targetIndex = 1 - challengerIndex;
     const challenger = this.players[challengerIndex];
     const target = this.players[targetIndex];
     if (challenger.lockedOut) throw new Error("このラウンドでは再度ダウトできません。");
-    if (!CHEATS.some(({ id }) => id === cheatId)) throw new Error("指摘する種類を選択してください。");
-    if (this.cheatUsed[targetIndex].includes(cheatId)) {
+    const cheatIds = Array.isArray(cheatInput) ? cheatInput : [cheatInput];
+    const challengeableCheatIds = CHEATS.filter(({ challengeable }) => challengeable !== false).map(({ id }) => id);
+    if (cheatIds.length === 0 || cheatIds.some((id) => !challengeableCheatIds.includes(id))) {
+      throw new Error("指摘する種類を選択してください。");
+    }
+    if (cheatIds.some((id) => this.cheatUsed[targetIndex].includes(id))) {
       const penalty = target.stack;
       target.stack = 0;
       challenger.stack += this.pot + penalty;

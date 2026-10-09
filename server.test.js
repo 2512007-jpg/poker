@@ -35,6 +35,22 @@ function sendRequest(socket, type, fields = {}) {
   return response;
 }
 
+function waitForNoMessage(socket, predicate, timeoutMs = 50) {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      socket.off("message", onMessage);
+      resolve(true);
+    }, timeoutMs);
+    const onMessage = (data) => {
+      if (!predicate(JSON.parse(data.toString()))) return;
+      clearTimeout(timeout);
+      socket.off("message", onMessage);
+      resolve(false);
+    };
+    socket.on("message", onMessage);
+  });
+}
+
 test("ルーム対戦はサーバーが進行を管理し、相手の手札を隠して再接続できる", async (context) => {
   const application = createPokerServer();
   const address = await application.listen(0, "127.0.0.1");
@@ -85,18 +101,40 @@ test("ルーム対戦はサーバーが進行を管理し、相手の手札を�
 
   const hostAfterCheat = nextMessage(host, (message) => message.type === "state");
   const guestAfterCheat = nextMessage(guest, (message) => message.type === "state");
-  const guestOpponentTell = nextMessage(guest, (message) => message.type === "opponentTell");
+  const noTellWithoutGaze = waitForNoMessage(guest, (message) => message.type === "opponentTell");
   const privatePeek = await sendRequest(host, "cheat", {
     cheatId: "peek",
     options: { handIndices: [0, 1, 2] },
   });
   const hostCheatState = await hostAfterCheat;
   const guestCheatState = await guestAfterCheat;
-  assert.equal((await guestOpponentTell).type, "opponentTell");
+  assert.equal(await noTellWithoutGaze, true);
   assert.equal(privatePeek.type, "result");
   assert.equal(privatePeek.result.length, 3);
   assert.deepEqual(guestCheatState.game.players[0].hand, [null, null, null, null, null]);
   assert.deepEqual(hostCheatState.game.players[1].hand, [null, null, null, null, null]);
+
+  const hostAfterGaze = nextMessage(host, (message) => message.type === "state");
+  const guestAfterGaze = nextMessage(guest, (message) => message.type === "state");
+  const noTellOnGazeActivation = waitForNoMessage(host, (message) => message.type === "opponentTell");
+  const gazeResult = await sendRequest(guest, "cheat", { cheatId: "gaze", options: {} });
+  const hostGazeState = await hostAfterGaze;
+  const guestGazeState = await guestAfterGaze;
+  assert.equal(await noTellOnGazeActivation, true);
+  assert.deepEqual(gazeResult.result, { active: true });
+  assert.equal(hostGazeState.game.players[1].gazeActive, false);
+  assert.equal(guestGazeState.game.players[1].gazeActive, true);
+
+  const hostAfterGazedCheat = nextMessage(host, (message) => message.type === "state");
+  const guestAfterGazedCheat = nextMessage(guest, (message) => message.type === "state");
+  const guestOpponentTell = nextMessage(guest, (message) => message.type === "opponentTell");
+  await sendRequest(host, "cheat", {
+    cheatId: "peek",
+    options: { handIndices: [0, 1, 2] },
+  });
+  await hostAfterGazedCheat;
+  await guestAfterGazedCheat;
+  assert.equal((await guestOpponentTell).type, "opponentTell");
 
   const hostSleeveState = nextMessage(host, (message) => message.type === "state");
   const guestSleeveState = nextMessage(guest, (message) => message.type === "state");

@@ -243,6 +243,10 @@ async function sendOnline(type, fields = {}) {
         localHint = result.action === "隠す" ? "カードを袖に隠しました。" : "袖のカードと手札を交換しました。";
       } else if (cheatId === "discard") {
         localHint = `捨て札から${cardLabel(result.card)}を取り出しました。`;
+      } else if (cheatId === "tripleDraw") {
+        localHint = "三枚取りでカードを3枚引きました。";
+      } else if (cheatId === "gaze") {
+        localHint = "凝視中です。このラウンド中、相手のイカサマ使用を感知できます。";
       } else {
         localHint = `書き換えました：${cardLabel(result.card)}`;
       }
@@ -352,7 +356,7 @@ function cpuAct() {
     if (result.success) return;
   }
 
-  if (Math.random() < 0.24 && cpuCheat()) showOpponentTell();
+  if (Math.random() < 0.24 && cpuCheat() && game.players[0].gazeActive) showOpponentTell();
   if (game.phase === "draw" && game.drawOrder[game.drawTurn] === 1) {
     const cards = game.players[1].hand;
     const keep = new Set();
@@ -388,8 +392,11 @@ function cpuAct() {
 
 function cpuCheat() {
   const player = game.players[1];
-  const choices = CHEATS.filter(({ cost = 0, id, maxUses }) => (
-    cost <= player.mp && (id !== "rewrite" || player.rewriteUses < maxUses)
+  const choices = CHEATS.filter(({ cost = 0, id, maxUses, challengeable }) => (
+    challengeable !== false
+    && cost <= player.mp
+    && (id !== "rewrite" || player.rewriteUses < maxUses)
+    && (id !== "tripleDraw" || (game.mode === "draw" && game.phase === "draw"))
   ));
   if (choices.length === 0) return false;
   const selected = choices[Math.floor(Math.random() * choices.length)].id;
@@ -408,6 +415,13 @@ function cpuCheat() {
   } else if (selected === "rewrite") {
     const index = weakestCardIndex(player.hand);
     game.useCheat(1, selected, { handIndex: index, suit: player.hand[0].suit, rank: Math.min(14, player.hand[index].rank + 3) });
+  } else if (selected === "tripleDraw") {
+    const indices = player.hand
+      .map((card, index) => ({ card, index }))
+      .sort((left, right) => left.card.rank - right.card.rank)
+      .slice(0, 3)
+      .map(({ index }) => index);
+    game.useCheat(1, selected, { handIndices: indices });
   } else {
     game.useCheat(1, selected, { handIndex: weakestCardIndex(player.hand) });
   }
@@ -459,7 +473,8 @@ function cpuHandStrength() {
 }
 
 function randomCheat() {
-  return CHEATS[Math.floor(Math.random() * CHEATS.length)].id;
+  const challengeableCheats = CHEATS.filter(({ challengeable }) => challengeable !== false);
+  return challengeableCheats[Math.floor(Math.random() * challengeableCheats.length)].id;
 }
 
 function render() {
@@ -584,13 +599,18 @@ function renderActions() {
     button.dataset.cheat = cheat.id;
     const rewriteLimitReached = cheat.id === "rewrite" && localPlayer.rewriteUses >= cheat.maxUses;
     const lacksMp = cheat.cost !== undefined && localPlayer.mp < cheat.cost;
-    button.disabled = busy || !["bet", "draw"].includes(game.phase) || lacksMp || rewriteLimitReached;
+    const unavailablePhase = cheat.id === "tripleDraw" && (game.mode !== "draw" || game.phase !== "draw");
+    const gazeAlreadyActive = cheat.id === "gaze" && localPlayer.gazeActive;
+    button.disabled = busy || !["bet", "draw"].includes(game.phase) || unavailablePhase || lacksMp || rewriteLimitReached || gazeAlreadyActive;
+    button.classList.toggle("is-active", gazeAlreadyActive);
     const title = document.createElement("strong");
     title.textContent = cheat.label;
     const cost = document.createElement("span");
-    cost.textContent = cheat.maxUses !== undefined
-      ? `残り${Math.max(0, cheat.maxUses - localPlayer.rewriteUses)}回`
-      : `${cheat.cost} MP`;
+    cost.textContent = gazeAlreadyActive
+      ? "凝視中"
+      : cheat.maxUses !== undefined
+        ? `残り${Math.max(0, cheat.maxUses - localPlayer.rewriteUses)}回`
+        : `${cheat.cost} MP`;
     button.append(title, cost);
     return button;
   }));
@@ -619,13 +639,18 @@ function openDoubtDialog() {
   if (!game || game.players[localPlayerIndex].lockedOut || !["bet", "draw"].includes(game.phase)) return;
   showDialog({
     title: "ダウト（指摘）",
-    description: "相手がこのラウンドに使ったと思うイカサマを選んでください。成功すればラウンド勝利。失敗すると相手に50チップを渡し、このラウンドは再指摘できません。",
-    fields: [{ name: "cheatId", label: "指摘するイカサマ", options: CHEATS.map(({ id, label }) => [id, label]) }],
+    description: "相手がこのラウンドに使ったと思うイカサマをすべて選んでください。1つでも当たれば成功し、失敗すると相手に50チップを渡してこのラウンドは再指摘できません。",
+    fields: [{
+      name: "cheatIds",
+      label: "指摘するイカサマ（複数選択可）",
+      type: "checkboxes",
+      options: CHEATS.filter(({ challengeable }) => challengeable !== false).map(({ id, label }) => [id, label]),
+    }],
     confirm: "指摘する",
     onConfirm: (data) => {
-      if (onlineClient) sendOnline("challenge", { cheatId: data.cheatId });
+      if (onlineClient) sendOnline("challenge", { cheatIds: data.cheatIds });
       else {
-        const result = game.challenge(localPlayerIndex, data.cheatId);
+        const result = game.challenge(localPlayerIndex, data.cheatIds);
         localHint = "";
         if (result.success) {
           if (cpuTimer) window.clearTimeout(cpuTimer);
@@ -642,7 +667,18 @@ function openCheatDialog(cheatId) {
   const player = game?.players[localPlayerIndex];
   const opponent = game?.players[1 - localPlayerIndex];
   if (!game || !cheat || (cheat.cost !== undefined && player.mp < cheat.cost)
-    || (cheat.id === "rewrite" && player.rewriteUses >= cheat.maxUses)) return;
+    || (cheat.id === "rewrite" && player.rewriteUses >= cheat.maxUses)
+    || (cheat.id === "tripleDraw" && (game.mode !== "draw" || game.phase !== "draw"))) return;
+  if (!["bet", "draw"].includes(game.phase) || (cheat.id === "gaze" && player.gazeActive)) return;
+  if (cheatId === "gaze") {
+    if (onlineClient) sendOnline("cheat", { cheatId, options: {} });
+    else {
+      game.useCheat(localPlayerIndex, cheatId);
+      localHint = "凝視中です。このラウンド中、相手のイカサマ使用を感知できます。";
+      render();
+    }
+    return;
+  }
   const handFields = [{ name: "handIndex", label: "対象の手札", options: player.hand.map((card, index) => [String(index), `カード ${index + 1}${card ? `（${cardLabel(card)}）` : ""}`]) }];
   let fields = [];
   let description = cheat.description;
@@ -661,6 +697,14 @@ function openCheatDialog(cheatId) {
   } else if (cheatId === "discard") {
     fields = handFields;
     description = "捨て札の中から1枚を取り出して、自分の手札を差し替えます。";
+  } else if (cheatId === "tripleDraw") {
+    fields = [{
+      name: "handIndices",
+      label: "交換する手札を3枚選択",
+      type: "checkboxes",
+      options: player.hand.map((card, index) => [String(index), `カード ${index + 1}${card ? `（${cardLabel(card)}）` : ""}`]),
+    }];
+    description = "選んだ手札3枚を捨て、山札から3枚引いて交換します。使用には2MPかかります。";
   } else if (cheatId === "rewrite") {
     fields = [
       ...handFields,
@@ -685,7 +729,7 @@ function openCheatDialog(cheatId) {
       : `${cheat.label} · ${cheat.cost} MP`,
     description,
     fields,
-    confirm: cheatId === "peek" ? "透視する" : cheatId === "sleeve" && player.sleeve ? "交換する" : cheatId === "discard" ? "取り出す" : "発動する",
+    confirm: cheatId === "peek" ? "透視する" : cheatId === "tripleDraw" ? "3枚引く" : cheatId === "sleeve" && player.sleeve ? "交換する" : cheatId === "discard" ? "取り出す" : "発動する",
     onConfirm: (data) => {
       const options = {
         ...data,
@@ -714,6 +758,8 @@ function openCheatDialog(cheatId) {
         localHint = result.action === "隠す" ? "カードを袖に隠しました。" : "袖のカードと手札を交換しました。";
       } else if (cheatId === "discard") {
         localHint = `捨て札から${cardLabel(result.card)}を取り出しました。`;
+      } else if (cheatId === "tripleDraw") {
+        localHint = "三枚取りでカードを3枚引きました。";
       } else {
         localHint = `書き換えました：${cardLabel(result.card)}`;
       }
